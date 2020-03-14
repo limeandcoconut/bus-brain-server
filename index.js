@@ -1,23 +1,44 @@
-const express = require('express')
-const got = require('got')
+const fastify = require('fastify')({ logger: false })
+const { isProd, gotMock } = require('./utils')
+const got = isProd() ? require('got') : gotMock
 const parseClients = require('./parse-clients')
-const bodyParser = require('body-parser')
-const {port, configFile} = require('./config.js')
-
-const app = express()
-app.use(bodyParser.urlencoded({extended: true}))
+const { port, configFile, webPanelHostRegex } = require('./config.js')
 
 const clients = parseClients(configFile)
 
-app.post('/', async (request, response) => {
-  const {id, state} = request.body
-  const client = clients[id]
-  if (!client) {
-    return response.send('Error: Controller not found')
-  }
-  const reply = await got(`http://${client}/?state=${state}`)
-  console.log(reply)
-  return response.send(state)
+fastify.register(require('fastify-formbody'))
+fastify.register(require('fastify-cors'), {
+  methods: ['GET', 'POST'],
+  origin: [
+    webPanelHostRegex,
+    ...Object.values(clients),
+  ],
 })
 
-app.listen(port, () => console.log(`Listening on: ${port}`))
+fastify.post('/', async (request, response) => {
+  const { id, state, action } = JSON.parse(request.body)
+  const client = clients[id]
+
+  if (!client) {
+    response.code(404)
+    response.send({ Error: 'Controller not found' })
+  }
+
+  if (action === 'toggle') {
+    const reply = await got(`http://${client}/?action=${action}`)
+    console.log(reply)
+    response.send(reply)
+  }
+  if (typeof state === 'number') {
+    const reply = await got(`http://${client}/?state=${state}`)
+    console.log(reply)
+    response.send(reply)
+  }
+  response.code(400)
+  response.send({ Error: 'Invalid request' })
+})
+
+;(async () => {
+  await fastify.listen(port)
+  fastify.log.info(`server listening on ${fastify.server.address().port}`)
+})()
