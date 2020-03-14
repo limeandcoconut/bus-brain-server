@@ -40,5 +40,5 @@ fastify.post('/', async (request, response) => {
 
 ;(async () => {
   await fastify.listen(port)
-  fastify.log.info(`server listening on ${fastify.server.address().port}`)
+  console.log(`server listening on ${fastify.server.address().port}`)
 })()
