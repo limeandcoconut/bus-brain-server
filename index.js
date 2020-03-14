@@ -2,7 +2,7 @@ const express = require('express')
 const got = require('got')
 const parseClients = require('./parse-clients')
 const bodyParser = require('body-parser')
-const {port, clientPort, configFile} = require('./config.js')
+const {port, configFile} = require('./config.js')
 
 const app = express()
 app.use(bodyParser.urlencoded({extended: true}))
@@ -15,8 +15,9 @@ app.post('/', async (request, response) => {
   if (!client) {
     return response.send('Error: Controller not found')
   }
-  const reply = await got(`http://${client}:${clientPort}/?state=${state}`)
-  return response.send(reply)
+  const reply = await got(`http://${client}/?state=${state}`)
+  console.log(reply)
+  return response.send(state)
 })
 
 app.listen(port, () => console.log(`Listening on: ${port}`))
