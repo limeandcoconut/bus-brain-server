@@ -2,7 +2,7 @@
 const { isProd, gotMock } = require('./utils')
 const got = isProd() ? require('got') : gotMock
 const parseClients = require('./parse-clients')
-const { port, configFile, webPanelHostRegex } = require('./config.js')
+const { port, configFile } = require('./config.js')
 
 const clients = parseClients(configFile)
 
@@ -21,7 +21,9 @@ const app = express()
 app.use(cors({
   methods: ['GET', 'POST'],
   origin: [
-    webPanelHostRegex,
+    /:\/\/das-mechabus\.jacobsmith\.tech/,
+    // These are the local machines
+    /:\/\/10.0.0.[2-4]/,
     ...Object.values(clients),
   ],
 }))
