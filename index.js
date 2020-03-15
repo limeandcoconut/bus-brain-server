@@ -22,15 +22,15 @@ app.use(cors({
 app.use(express.json())
 
 app.post('/', async (request, response) => {
-  const { id, state, action } = request.body
+  const { id, state, toggle } = request.body
   const client = clients[id]
 
   if (!client) {
     response.status(404)
     return response.send({ Error: 'Controller not found' })
   }
-  if (action === 'toggle') {
-    const reply = await got(`http://${client}/?action=${action}`)
+  if (typeof toggle === 'number') {
+    const reply = await got(`http://${client}/?toggle=${toggle}`)
     console.log(reply)
     return response.send(reply)
   }
@@ -41,6 +41,19 @@ app.post('/', async (request, response) => {
   }
   response.status(400)
   return response.send({ Error: 'Invalid request' })
+})
+
+app.get('/', async (request, response) => {
+  const id = request.query.id
+  const client = clients[id]
+
+  if (!client) {
+    response.status(404)
+    return response.send({ Error: 'Controller not found' })
+  }
+  const reply = await got(`http://${client}`)
+  console.log(reply)
+  return response.send(reply)
 })
 
 app.listen(port, () => console.log(`Listening on: ${port}`))
