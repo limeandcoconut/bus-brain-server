@@ -19,22 +19,25 @@ app.use(cors({
   ],
 }))
 
+app.use(express.urlencoded())
 app.use(express.json())
 
 app.post('/', async (request, response) => {
   const { id, state, toggle } = request.body
   const client = clients[id]
 
+  console.log(request.body)
+
   if (!client) {
     response.status(404)
     return response.send({ Error: 'Controller not found' })
   }
-  if (typeof toggle === 'number') {
+  if (typeof toggle !== 'undefined') {
     const reply = await got(`http://${client}/?toggle=${toggle}`)
     console.log(reply)
     return response.send(reply)
   }
-  if (typeof state === 'number') {
+  if (typeof state !== 'undefined') {
     const reply = await got(`http://${client}/?state=${state}`)
     console.log(reply)
     return response.send(reply)
