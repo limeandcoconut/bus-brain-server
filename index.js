@@ -26,7 +26,7 @@ app.post('/', async (request, response) => {
   const client = clients[id]
 
   if (!client) {
-    response.set(404)
+    response.status(404)
     return response.send({ Error: 'Controller not found' })
   }
   if (action === 'toggle') {
@@ -39,7 +39,7 @@ app.post('/', async (request, response) => {
     console.log(reply)
     return response.send(reply)
   }
-  response.set(400)
+  response.status(400)
   return response.send({ Error: 'Invalid request' })
 })
 
