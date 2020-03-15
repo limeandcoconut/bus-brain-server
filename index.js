@@ -33,12 +33,12 @@ app.post('/', async (request, response) => {
     return response.send({ Error: 'Controller not found' })
   }
   if (typeof toggle !== 'undefined') {
-    const reply = await got(`http://${client}/?toggle=${toggle}`)
+    const reply = await got(`http://${client}/?toggle=${toggle}`).json()
     console.log(reply)
     return response.send(reply)
   }
   if (typeof state !== 'undefined') {
-    const reply = await got(`http://${client}/?state=${state}`)
+    const reply = await got(`http://${client}/?state=${state}`).json()
     console.log(reply)
     return response.send(reply)
   }
@@ -54,7 +54,7 @@ app.get('/', async (request, response) => {
     response.status(404)
     return response.send({ Error: 'Controller not found' })
   }
-  const reply = await got(`http://${client}`)
+  const reply = await got(`http://${client}`).json()
   console.log(reply)
   return response.send(reply)
 })
