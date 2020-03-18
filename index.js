@@ -77,19 +77,19 @@ ws.on('connection', async (socket) => {
     }
 
     if (reply.error) {
-      reply = {
+      socket.send(JSON.stringify({
         type: 'error',
         data: reply,
-      }
-    } else {
-      reply = {
+      }))
+      return
+    }
+
+    ws.clients.forEach((client) => {
+      client.send(JSON.stringify({
         type: 'update',
         data: Array.isArray(reply) ? reply : [reply],
-      }
-    }
-    socket.send(JSON.stringify(reply))
-    return
-
+      }))
+    })
   })
 
   socket.send(JSON.stringify({
