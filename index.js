@@ -5,6 +5,12 @@ const got = isProd() ? require('got') : gotMock
 const parseClients = require('./parse-clients')
 const { port, configFile } = require('./config.js')
 const WebSocket = require('ws')
+const argon2 = require('argon2')
+const { jwtSecret } = require('./keys.js')
+const JWT = require('./jwt.js')(jwtSecret)
+
+const passwords = require('./password-hashes.js')
+console.log(passwords)
 
 const ws = new WebSocket.Server({ port: 3535 })
 
@@ -13,19 +19,44 @@ const clients = parseClients(configFile)
 
 const clientsArray = Object.values(clients)
 
-const code400 = {
-  code: 400,
-  error: 'Invalid request',
+const codes = {
+  400: {
+    code: 400,
+    error: 'Invalid request',
+  },
+  401: {
+    code: 401,
+    error: 'Unauthorized',
+  },
+  404: {
+    code: 404,
+    error: 'Controller not found',
+  },
+}
+
+const getAuthReply = () => ({
+  type: 'auth',
+  data: {
+    // Generate a token that's good for 30 minutes
+    jwt: JWT.encode({ exp: Date.now() + (30 * 60 * 1000) }),
+  },
+})
+
+const authenticate = async ({ password }) => {
+  for (const record of passwords) {
+    if (!await argon2.verify(record, password)) {
+      continue
+    }
+    return getAuthReply()
+  }
+  return codes[401]
 }
 
 const getController = async (id) => {
   const client = clients[id]
 
   if (!client) {
-    return {
-      code: 404,
-      error: 'Controller not found',
-    }
+    return codes[404]
   }
   const reply = await got(`http://${client}`).json()
   reply.id = id
@@ -36,10 +67,7 @@ const setController = async ({ id, state, toggle }) => {
   const client = clients[id]
 
   if (!client) {
-    return {
-      code: 404,
-      error: 'Controller not found',
-    }
+    return codes[404]
   }
 
   if (typeof toggle !== 'undefined') {
@@ -53,7 +81,7 @@ const setController = async ({ id, state, toggle }) => {
     return reply
   }
 
-  return code400
+  return codes[400]
 }
 
 const refreshControllers = () => Promise.all(Object.keys(clients).map(
@@ -62,18 +90,31 @@ const refreshControllers = () => Promise.all(Object.keys(clients).map(
 
 ws.on('connection', async (socket) => {
   socket.on('message', async (message) => {
-    const { type, data } = JSON.parse(message)
+    const { type, jwt, data = {} } = JSON.parse(message)
 
-    console.log(type, data)
+    console.log(type, data, jwt)
     let reply
-    if (type === 'set') {
-      reply = await setController(data)
-    } else if (type === 'get') {
-      reply = await setController(data)
-    } else if (type === 'refresh') {
-      reply = await refreshControllers()
+    if (type === 'auth') {
+      reply = await authenticate(data)
+    } else if (!jwt) {
+      reply = codes[401]
     } else {
-      reply = code400
+      const decoded = JWT.decode(jwt)
+      if (!decoded) {
+        reply = codes[401]
+      } else if (decoded.exp < Date.now()) {
+        reply = codes[401]
+      } else if (type === 'reauth') {
+        reply = getAuthReply()
+      } else if (type === 'set') {
+        reply = await setController(data)
+      } else if (type === 'get') {
+        reply = await setController(data)
+      } else if (type === 'refresh') {
+        reply = await refreshControllers()
+      } else {
+        reply = codes[400]
+      }
     }
 
     if (reply.error) {
@@ -81,6 +122,11 @@ ws.on('connection', async (socket) => {
         type: 'error',
         data: reply,
       }))
+      return
+    }
+    if (reply.data && reply.data.jwt) {
+      console.log(reply)
+      socket.send(JSON.stringify(reply))
       return
     }
 
@@ -91,11 +137,6 @@ ws.on('connection', async (socket) => {
       }))
     })
   })
-
-  socket.send(JSON.stringify({
-    type: 'update',
-    data: await refreshControllers(),
-  }))
 })
 
 app.use(cors({
