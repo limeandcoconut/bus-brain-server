@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "NODE_ENV=development node index.js",
-    "prod": "NODE_ENV=production node index.js"
+    "prod": "NODE_ENV=production node index.js",
+    "scp:secrets": "scp -r ./keys.js ./password-hashes.js brain:bus-brain-server/"
   },
   "keywords": [],
   "license": "isc",
