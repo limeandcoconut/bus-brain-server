@@ -34,6 +34,10 @@ const codes = {
     code: 404,
     error: 'Controller not found',
   },
+  502: {
+    code: 502,
+    error: 'Controller unreachable',
+  },
 }
 
 const getAuthReply = () => ({
@@ -60,7 +64,12 @@ const getController = async (id) => {
   if (!client) {
     return codes[404]
   }
-  const reply = await got(`http://${client}`).json()
+  let reply
+  try {
+    reply = await got(`http://${client}`).json()
+  } catch (error) {
+    return codes[502]
+  }
   reply.id = id
   return reply
 }
@@ -71,19 +80,23 @@ const setController = async ({ id, state, toggle }) => {
   if (!client) {
     return codes[404]
   }
-
+  let url = `http://${client}`
   if (typeof toggle !== 'undefined') {
-    const reply = await got(`http://${client}/?toggle=${toggle}`).json()
-    reply.id = id
-    return reply
-  }
-  if (typeof state !== 'undefined') {
-    const reply = await got(`http://${client}/?state=${state}`).json()
-    reply.id = id
-    return reply
+    url += `/?toggle=${toggle}`
+  } else if (typeof state !== 'undefined') {
+    url += `/?state=${state}`
+  } else {
+    return codes[400]
   }
 
-  return codes[400]
+  let reply
+  try {
+    reply = await got(url).json()
+    reply.id = id
+  } catch (error) {
+    reply = codes[502]
+  }
+  return reply
 }
 
 const refreshControllers = () => Promise.all(Object.keys(clients).map(
@@ -95,6 +108,7 @@ ws.on('connection', async (socket) => {
     const { type, jwt, data = {} } = JSON.parse(message)
 
     console.log(type, data, jwt)
+
     let reply
     if (type === 'auth') {
       reply = await authenticate(data)
