@@ -10,7 +10,9 @@ const { jwtSecret } = require('./keys.js')
 const JWT = require('./jwt.js')(jwtSecret)
 
 const passwords = require('./password-hashes.js')
-console.log(passwords)
+if (passwords.length === 0) {
+  console.log('\u001B[41mWARNING: No passwords specified.\u001b[0m')
+}
 
 const ws = new WebSocket.Server({ port: 3535 })
 
