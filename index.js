@@ -158,7 +158,7 @@ ws.on('connection', async (socket) => {
 app.use(cors({
   methods: ['GET', 'POST'],
   origin: [
-    /:\/\/das-mechabus\.jacobsmith\.tech/,
+    /:\/\/mechabus\.jacobsmith\.tech/,
     /:\/\/localhost:/,
     // These are the local machines
     /:\/\/10.0.0.[2-4]/,
