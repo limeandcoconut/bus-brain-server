@@ -159,6 +159,7 @@ app.use(cors({
   methods: ['GET', 'POST'],
   origin: [
     /:\/\/mechabus\.jacobsmith\.tech/,
+    /:\/\/das-mechabus\.jacobsmith\.tech/,
     /:\/\/localhost:/,
     // These are the local machines
     /:\/\/10.0.0.[2-4]/,
