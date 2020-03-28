@@ -1,13 +1,13 @@
 {
   "name": "bus-brain-server",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "author": "Jacob Smith <js@jacobsmith.tech> (https://github.com/limeandcoconut)",
   "private": false,
   "main": "index.js",
   "scripts": {
     "dev": "NODE_ENV=development node index.js",
     "prod": "NODE_ENV=production node index.js",
-    "scp:secrets": "scp -r ./keys.js ./password-hashes.js brain:bus-brain-server/"
+    "scp:secrets": "scp ./keys.js ./password-hashes.js brain:bus-brain-server/"
   },
   "keywords": [],
   "license": "isc",

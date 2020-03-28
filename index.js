@@ -3,10 +3,10 @@ const cors = require('cors')
 const { isProd, gotMock } = require('./utils')
 const got = isProd() ? require('got') : gotMock
 const parseClients = require('./parse-clients')
-const { port, configFile } = require('./config.js')
+const { port, wsPort, wsMiddleman, configFile } = require('./config.js')
 const WebSocket = require('ws')
 const argon2 = require('argon2')
-const { jwtSecret } = require('./keys.js')
+const { jwtSecret, password } = require('./keys.js')
 const JWT = require('./jwt.js')(jwtSecret)
 
 const passwords = require('./password-hashes.js')
@@ -14,11 +14,74 @@ if (passwords.length === 0) {
   console.log('\u001B[41mWARNING: No passwords specified.\u001b[0m')
 }
 
-const ws = new WebSocket.Server({ port: 3535 })
+// eslint-disable-next-line require-jsdoc
+function log() {
+  if (process.env.VERBOSE === true) {
+    console.log(arguments)
+  }
+}
 
+const ws = new WebSocket.Server({ port: wsPort })
+
+// Intentional hoist
+let createHandler
+let reopenConnection
+
+let authDepth = 1
+const maxDepth = 6
+const authDelay = 500
+// 1500
+// 4500
+// 13500
+// 40500
+// 121500
+// 364500 (~6 min)
+
+let apiJWT
+let middleman
+// Initialize the connection to the ws-middleman service
+const initMiddleman = () => {
+  try {
+    middleman = new WebSocket(wsMiddleman)
+  } catch (error) {
+    console.log(error)
+    reopenConnection()
+    return
+  }
+
+  // Auth on open
+  middleman.on('open', () => {
+    log('Middleman opened')
+    middleman.send(JSON.stringify({
+      role: 'api',
+      type: 'apiAuth',
+      data: {
+        password,
+      },
+    }))
+  })
+
+  middleman.on('message', createHandler(middleman))
+
+  middleman.on('close', reopenConnection)
+
+  // Log the heartbeat
+  middleman.on('ping', () => log('ping'))
+}
+
+// On close set an incrementally increasing timeout to reconnect
+reopenConnection = () => {
+  log('Middleman closed')
+  setTimeout(initMiddleman, authDelay * Math.pow(3, authDepth))
+  if (authDepth < maxDepth) {
+    authDepth++
+  }
+}
+
+// Express is only used for the controllers
 const app = express()
+// Parse controllers from the config
 const clients = parseClients(configFile)
-
 const clientsArray = Object.values(clients)
 
 const codes = {
@@ -49,6 +112,7 @@ const getAuthReply = () => ({
 })
 
 const authenticate = async ({ password }) => {
+  // Try all passwords
   for (const record of passwords) {
     if (!await argon2.verify(record, password)) {
       continue
@@ -103,56 +167,84 @@ const refreshControllers = () => Promise.all(Object.keys(clients).map(
   async id => getController(id),
 ))
 
-ws.on('connection', async (socket) => {
-  socket.on('message', async (message) => {
-    const { type, jwt, data = {} } = JSON.parse(message)
+createHandler = socket => async (message) => {
+  const { type, jwt, data = {}, id, role } = JSON.parse(message)
 
-    console.log(type, data, jwt)
+  log('Received: ', { type, jwt, id, data, role })
 
-    let reply
-    if (type === 'auth') {
-      reply = await authenticate(data)
-    } else if (!jwt) {
-      reply = codes[401]
+  let reply
+  // If this is a response sent to the api as a ws client handle appropriately
+  if (role === 'api') {
+    if (type === 'apiAuth') {
+      apiJWT = data.jwt
+      log('Authenticated: ', apiJWT)
     } else {
-      const decoded = JWT.decode(jwt)
-      if (!decoded) {
-        reply = codes[401]
-      } else if (decoded.exp < Date.now()) {
-        reply = codes[401]
-      } else if (type === 'reauth') {
-        reply = getAuthReply()
-      } else if (type === 'set') {
-        reply = await setController(data)
-      } else if (type === 'get') {
-        reply = await setController(data)
-      } else if (type === 'refresh') {
-        reply = await refreshControllers()
-      } else {
-        reply = codes[400]
-      }
+      log('Error: Failed to authenticate with middleman service')
+      log(data)
     }
+    return
+  }
+  if (type === 'auth') {
+    reply = await authenticate(data)
+  } else if (!jwt) {
+    reply = codes[401]
+  } else {
+    const decoded = JWT.decode(jwt)
+    if (!decoded || decoded.exp < Date.now()) {
+      reply = codes[401]
+    } else if (type === 'reauth') {
+      reply = getAuthReply()
+    } else if (type === 'set') {
+      reply = await setController(data)
+    } else if (type === 'get') {
+      reply = await setController(data)
+    } else if (type === 'refresh') {
+      reply = await refreshControllers()
+    } else {
+      reply = codes[400]
+    }
+  }
 
-    if (reply.error) {
-      socket.send(JSON.stringify({
-        type: 'error',
-        data: reply,
-      }))
-      return
-    }
-    if (reply.data && reply.data.jwt) {
-      console.log(reply)
-      socket.send(JSON.stringify(reply))
-      return
-    }
+  if (reply.error) {
+    socket.send(JSON.stringify({
+      type: 'error',
+      id,
+      role: 'api',
+      apiJWT,
+      data: reply,
+    }))
+    return
+  }
+  if (reply.data && reply.data.jwt) {
+    reply.id = id
+    reply.role = 'api'
+    reply.apiJWT = apiJWT
+    socket.send(JSON.stringify(reply))
+    return
+  }
 
-    ws.clients.forEach((client) => {
-      client.send(JSON.stringify({
-        type: 'update',
-        data: Array.isArray(reply) ? reply : [reply],
-      }))
-    })
-  })
+  // Broadcast to all clients
+  message = {
+    type: 'update',
+    data: Array.isArray(reply) ? reply : [reply],
+  }
+  const stringified = JSON.stringify(message)
+  ws.clients.forEach(client => client.send(stringified))
+
+  // If theres a middleman broadcast to it
+  if (middleman.readyState !== WebSocket.OPEN) {
+    return
+  }
+  message.role = 'api'
+  message.apiJWT = apiJWT
+  middleman.send(JSON.stringify(message))
+}
+
+// Init connection
+initMiddleman()
+
+ws.on('connection', async (socket) => {
+  socket.on('message', createHandler(socket))
 })
 
 app.use(cors({
