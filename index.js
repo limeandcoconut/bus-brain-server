@@ -16,7 +16,7 @@ if (passwords.length === 0) {
 
 // eslint-disable-next-line require-jsdoc
 function log() {
-  if (process.env.VERBOSE === true) {
+  if (process.env.VERBOSE) {
     console.log(arguments)
   }
 }
