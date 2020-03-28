@@ -6,7 +6,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "NODE_ENV=development node index.js",
+    "dev:v": "VERBOSE=true NODE_ENV=development node index.js",
     "prod": "NODE_ENV=production node index.js",
+    "prod:v": "VERBOSE=true NODE_ENV=production node index.js",
     "scp:secrets": "scp ./keys.js ./password-hashes.js brain:bus-brain-server/"
   },
   "keywords": [],
