@@ -30,6 +30,7 @@ let reopenConnection
 let authDepth = 1
 const maxDepth = 6
 const authDelay = 500
+const getAuthDelay = (depth = authDepth) => authDelay * Math.pow(3, depth)
 // 1500
 // 4500
 // 13500
@@ -52,6 +53,11 @@ const initMiddleman = () => {
   // Auth on open
   middleman.on('open', () => {
     log('Middleman opened')
+    // After the maximum amount of time reset the auth delay for quick retries
+    setTimeout(() => {
+      authDepth = 1
+    }, getAuthDelay(maxDepth))
+    // Authroize as the api
     middleman.send(JSON.stringify({
       role: 'api',
       type: 'apiAuth',
@@ -72,7 +78,7 @@ const initMiddleman = () => {
 // On close set an incrementally increasing timeout to reconnect
 reopenConnection = () => {
   log('Middleman closed')
-  setTimeout(initMiddleman, authDelay * Math.pow(3, authDepth))
+  setTimeout(initMiddleman, getAuthDelay())
   if (authDepth < maxDepth) {
     authDepth++
   }
@@ -163,9 +169,33 @@ const setController = async ({ id, state, toggle }) => {
   return reply
 }
 
-const refreshControllers = () => Promise.all(Object.keys(clients).map(
-  async id => getController(id),
-))
+const sendUpdate = (reply) => {
+  const message = {
+    type: 'update',
+    data: Array.isArray(reply) ? reply : [reply],
+  }
+  const stringified = JSON.stringify(message)
+  ws.clients.forEach(client => client.send(stringified))
+
+  // If theres a middleman broadcast to it
+  if (middleman.readyState !== WebSocket.OPEN) {
+    return
+  }
+  message.role = 'api'
+  message.apiJWT = apiJWT
+  middleman.send(JSON.stringify(message))
+}
+
+const updateController = async (id) => {
+  const reply = await getController(id)
+  sendUpdate(reply)
+}
+
+const refreshControllers = () => {
+  for (const id of Object.keys(clients)) {
+    updateController(id)
+  }
+}
 
 createHandler = socket => async (message) => {
   const { type, jwt, data = {}, id, role } = JSON.parse(message)
@@ -197,9 +227,14 @@ createHandler = socket => async (message) => {
     } else if (type === 'set') {
       reply = await setController(data)
     } else if (type === 'get') {
-      reply = await setController(data)
+      reply = await getController(data)
+    } else if (type === 'operate') {
+      reply = await (async (data) => {
+        console.log('onoff' + data)
+      })()
     } else if (type === 'refresh') {
-      reply = await refreshControllers()
+      refreshControllers()
+      return
     } else {
       reply = codes[400]
     }
@@ -224,25 +259,13 @@ createHandler = socket => async (message) => {
   }
 
   // Broadcast to all clients
-  message = {
-    type: 'update',
-    data: Array.isArray(reply) ? reply : [reply],
-  }
-  const stringified = JSON.stringify(message)
-  ws.clients.forEach(client => client.send(stringified))
-
-  // If theres a middleman broadcast to it
-  if (middleman.readyState !== WebSocket.OPEN) {
-    return
-  }
-  message.role = 'api'
-  message.apiJWT = apiJWT
-  middleman.send(JSON.stringify(message))
+  sendUpdate(reply)
 }
 
 // Init connection
 initMiddleman()
 
+// Prepare to be the api to clients.
 ws.on('connection', async (socket) => {
   socket.on('message', createHandler(socket))
 })
@@ -263,11 +286,20 @@ app.use(express.urlencoded())
 app.use(express.json())
 
 app.post('/', async (request, response) => {
-  const reply = await setController(request.body)
-  if (reply.code) {
-    response.status(reply.code)
+  let reply
+  if (request.body.update) {
+    reply = request.body
+  } else {
+    reply = await setController(request.body)
+    if (reply.code) {
+      response.status(reply.code)
+    }
+    if (reply.error) {
+      return response.send(reply.error)
+    }
   }
-  return response.send(reply.error || reply)
+  sendUpdate(reply)
+  return response.send(reply)
 })
 
 app.get('/', async (request, response) => {
