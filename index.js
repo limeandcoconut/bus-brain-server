@@ -290,7 +290,7 @@ app.use(express.json())
 
 const asyncUpdate = async reply => sendUpdate(reply)
 const lookupRequestId = request => ipToIdMap[request.header('Origin')]
-const lookupPartnerId = id => 'swi' + id.slice(2, 6)
+const lookupPartnerId = id => 'swi' + id.slice(3, 6)
 
 app.post('/', async (request, response) => {
   let reply
