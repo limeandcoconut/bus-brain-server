@@ -89,6 +89,10 @@ const app = express()
 // Parse controllers from the config
 const clients = parseClients(configFile)
 const clientsArray = Object.values(clients)
+const ipToIdMap = {}
+Object.entries(clients).forEach(([id, ip]) => {
+  ipToIdMap[ip] = id
+})
 
 const codes = {
   400: {
@@ -291,14 +295,23 @@ app.post('/', async (request, response) => {
   let reply
   if (request.body.update) {
     reply = request.body
+    const ip = request.header('Origin')
+    reply.id = ipToIdMap[ip]
+    if (!ip) {
+      reply = codes[502]
+    } else if (!reply.id) {
+      reply = codes[400]
+    }
+    console.log(ip)
+    console.log(reply)
   } else {
     reply = await setController(request.body)
-    if (reply.code) {
-      response.status(reply.code)
-    }
-    if (reply.error) {
-      return response.send(reply.error)
-    }
+  }
+  if (reply.code) {
+    response.status(reply.code)
+  }
+  if (reply.error) {
+    return response.send(reply.error)
   }
   asyncUpdate(reply)
   return response.send(reply)
