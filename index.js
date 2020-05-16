@@ -158,7 +158,7 @@ const setController = async ({ id, state, toggle }) => {
   } else {
     return codes[400]
   }
-
+  log(url)
   let reply
   try {
     reply = await got(url).json()
@@ -285,6 +285,8 @@ app.use(cors({
 app.use(express.urlencoded())
 app.use(express.json())
 
+const asyncUpdate = async reply => sendUpdate(reply)
+
 app.post('/', async (request, response) => {
   let reply
   if (request.body.update) {
@@ -298,7 +300,7 @@ app.post('/', async (request, response) => {
       return response.send(reply.error)
     }
   }
-  sendUpdate(reply)
+  asyncUpdate(reply)
   return response.send(reply)
 })
 
