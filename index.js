@@ -88,7 +88,6 @@ reopenConnection = () => {
 const app = express()
 // Parse controllers from the config
 const clients = parseClients(configFile)
-const clientsArray = Object.values(clients)
 const ipToIdMap = {}
 Object.entries(clients).forEach(([id, ip]) => {
   ipToIdMap[ip] = id
@@ -282,7 +281,7 @@ app.use(cors({
     /:\/\/localhost:/,
     // These are the local machines
     /:\/\/10.0.0.[2-4]/,
-    ...clientsArray,
+    ...Object.values(clients),
   ],
 }))
 
@@ -290,22 +289,23 @@ app.use(express.urlencoded())
 app.use(express.json())
 
 const asyncUpdate = async reply => sendUpdate(reply)
+const lookupRequestId = request => ipToIdMap[request.header('Origin')]
+const lookupPartnerId = id => 'swi' + id.slice(2, 6)
 
 app.post('/', async (request, response) => {
   let reply
   if (request.body.update) {
     reply = request.body
-    const ip = request.header('Origin')
-    reply.id = ipToIdMap[ip]
-    if (!ip) {
-      reply = codes[502]
-    } else if (!reply.id) {
+    reply.id = lookupRequestId(request)
+    if (!reply.id) {
       reply = codes[400]
     }
-    console.log(ip)
-    console.log(reply)
   } else {
-    reply = await setController(request.body)
+    console.log(lookupPartnerId(lookupRequestId(request)))
+    reply = await setController({
+      ...request.body,
+      id: lookupPartnerId(lookupRequestId(request)),
+    })
   }
   if (reply.code) {
     response.status(reply.code)
