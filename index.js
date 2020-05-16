@@ -191,6 +191,10 @@ const sendUpdate = (reply) => {
 
 const updateController = async (id) => {
   const reply = await getController(id)
+  // Don't send 502s to every client on a general refresh
+  if (reply.code) {
+    return
+  }
   sendUpdate(reply)
 }
 
@@ -301,7 +305,6 @@ app.post('/', async (request, response) => {
       reply = codes[400]
     }
   } else {
-    console.log(lookupPartnerId(lookupRequestId(request)))
     reply = await setController({
       ...request.body,
       id: lookupPartnerId(lookupRequestId(request)),
