@@ -7,7 +7,8 @@ module.exports = {
     instances: 1,
     autorestart: true,
     watch: false,
-    max_memory_restart: '150M', // eslint-disable-line camelcase
+    // eslint-disable-next-line camelcase
+    max_memory_restart: '150M',
     env: {
       NODE_ENV: 'production',
     },
