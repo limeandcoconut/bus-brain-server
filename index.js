@@ -335,7 +335,7 @@ createHandler = socket => async (message) => {
 }
 
 // Init connection
-initMiddleman()
+// initMiddleman()
 
 // Prepare to be the api to clients.
 ws.on('connection', async (socket) => {
