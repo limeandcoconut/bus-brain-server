@@ -8,6 +8,7 @@ const WebSocket = require('ws')
 const argon2 = require('argon2')
 const { jwtSecret, password } = require('./keys.js')
 const JWT = require('./jwt.js')(jwtSecret)
+const Gpio = require('onoff').Gpio
 
 const passwords = require('./password-hashes.js')
 if (passwords.length === 0) {
@@ -20,6 +21,27 @@ function log() {
     console.log(arguments)
   }
 }
+
+/**
+ *   ____ ____ ___ ___
+ *  / ___|  _ \_ _/ _ \
+ * | |  _| |_) | | | | |
+ * | |_| |  __/| | |_| |
+ *  \____|_|  |___\___/
+ *
+ */
+
+// Export GPIO17 as an output
+const dump = new Gpio(17, 'out')
+
+/**
+ * __        ______
+ * \ \      / / ___|
+ *  \ \ /\ / /\___ \
+ *   \ V  V /  ___) |
+ *    \_/\_/  |____/
+ *
+ */
 
 // The server than manages clients and controllers
 const ws = new WebSocket.Server({ port: wsPort })
@@ -298,6 +320,16 @@ createHandler = socket => async (message) => {
     } else if (type === 'operate') {
       reply = await (async (data) => {
         console.log('onoff' + data)
+        // Toggle the state of the LED connected to GPIO17 every 200ms
+        const blink = setInterval(() => dump.writeSync(dump.readSync() ^ 1), 200)
+
+        // Stop blinking the LED after 5 seconds
+        setTimeout(() => {
+          // Stop blinking
+          clearInterval(blink)
+          // Unexport GPIO and free resources
+          dump.unexport()
+        }, 5000)
       })()
     // Refresh the entire network of controllers
     } else if (type === 'refresh') {
