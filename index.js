@@ -221,6 +221,7 @@ providers = {
 }
 
 process.on('SIGINT', () => {
+  console.log('unexporting')
   Object.values(gpios).forEach(gpio => gpio.unexport())
 })
 
