@@ -237,6 +237,7 @@ const getGpio = data => handleRequest(
   async gpio => ({
     state: await gpio.read(),
   }),
+  false,
 )
 
 const setGpio = data => handleRequest(
@@ -253,6 +254,7 @@ const setGpio = data => handleRequest(
     log({ id, value })
     gpio.writeSync(value)
   },
+  false,
 )
 
 /**
