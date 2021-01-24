@@ -257,8 +257,8 @@ const setGpio = data => handleRequest(
  */
 
 // Helpers to handle any provider
-const getState = data => typeof data.id === 'string' ? getController(data) : getGpio(data)
-const setState = data => typeof data.id === 'string' ? setController(data) : setGpio(data)
+const getState = data => clients[data.id] ? getController(data) : getGpio(data)
+const setState = data => clients[data.id] ? setController(data) : setGpio(data)
 
 // Send an update to each connected client as well as the middleman
 const broadcastUpdate = (reply) => {
