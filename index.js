@@ -283,7 +283,7 @@ const broadcastUpdate = (reply) => {
   ws.clients.forEach(client => client.send(stringified))
 
   // If theres a middleman broadcast to it
-  if (middleman.readyState !== WebSocket.OPEN) {
+  if (middleman && middleman.readyState !== WebSocket.OPEN) {
     return
   }
   message.role = 'api'
