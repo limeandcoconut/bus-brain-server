@@ -23,18 +23,6 @@ function log() {
 }
 
 /**
- *   ____ ____ ___ ___
- *  / ___|  _ \_ _/ _ \
- * | |  _| |_) | | | | |
- * | |_| |  __/| | |_| |
- *  \____|_|  |___\___/
- *
- */
-
-// Export GPIO17 as an output
-const dump = new Gpio(17, 'out')
-
-/**
  * __        ______
  * \ \      / / ___|
  *  \ \ /\ / /\___ \
@@ -139,6 +127,37 @@ reopenConnection = () => {
   }
 }
 
+/** *
+ *  _   _      _
+ * | | | | ___| |_ __   ___ _ __ ___
+ * | |_| |/ _ \ | '_ \ / _ \ '__/ __|
+ * |  _  |  __/ | |_) |  __/ |  \__ \
+ * |_| |_|\___|_| .__/ \___|_|  |___/
+ *              |_|
+ */
+// Hoist
+let providers
+
+// Get/set the status of a provider
+// 404 on bad id
+// 50X on failure
+// Reply on success
+const handleRequest = async (data, makeRequest, external = true) => {
+  const provider = providers[data.id]
+
+  if (!provider) {
+    return codes[404]
+  }
+  let reply
+  try {
+    reply = await makeRequest(provider, data)
+    reply.id = data.id
+  } catch (error) {
+    return codes[external ? 502 : 500]
+  }
+  return reply
+}
+
 /**
  *   ____            _             _ _
  *  / ___|___  _ __ | |_ _ __ ___ | | | ___ _ __ ___
@@ -155,55 +174,91 @@ Object.entries(clients).forEach(([id, ip]) => {
   ipToIdMap[ip] = id
 })
 
-// Request the status of a controller
-// 404 on bad id
-// 502 on failure
-// Reply on success
-const getController = async (id) => {
-  const client = clients[id]
-
-  if (!client) {
-    return codes[404]
-  }
-  let reply
-  try {
-    reply = await got(`http://${client}`).json()
-  } catch (error) {
-    return codes[502]
-  }
-  reply.id = id
-  return reply
-}
+// Get the status of a controller
+const getController = data => handleRequest(
+  data,
+  ip => got(`http://${ip}`).json(),
+)
 
 // Set the status of a controller
-// 404 on bad id
 // 400 on bad action type (toggle/state)
-// 502 on failure
-// Reply on success
-const setController = async ({ id, state, toggle }) => {
-  const client = clients[id]
+const setController = data => handleRequest(
+  data,
+  (ip, { state, toggle }) => {
+    let url = `http://${ip}`
+    if (typeof toggle !== 'undefined') {
+      url += `/?toggle=${toggle}`
+    } else if (typeof state !== 'undefined') {
+      url += `/?state=${state}`
+    } else {
+      return codes[400]
+    }
+    log(url)
+    return got(url).json()
+  },
+)
 
-  if (!client) {
-    return codes[404]
-  }
-  let url = `http://${client}`
-  if (typeof toggle !== 'undefined') {
-    url += `/?toggle=${toggle}`
-  } else if (typeof state !== 'undefined') {
-    url += `/?state=${state}`
-  } else {
-    return codes[400]
-  }
-  log(url)
-  let reply
-  try {
-    reply = await got(url).json()
-  } catch (error) {
-    return codes[502]
-  }
-  reply.id = id
-  return reply
+/**
+ *   ____ ____ ___ ___
+ *  / ___|  _ \_ _/ _ \
+ * | |  _| |_) | | | | |
+ * | |_| |  __/| | |_| |
+ *  \____|_|  |___\___/
+ *
+ */
+
+// Export GPIO17 as an output
+const gpios = {
+  dump: new Gpio(17, 'out'),
+  fill: new Gpio(27, 'out'),
+  pump: new Gpio(22, 'out'),
 }
+
+// Set providers now that GPIOs are set
+providers = {
+  ...clients,
+  ...gpios,
+}
+
+process.on('SIGINT', () => {
+  Object.values(gpios).forEach(gpio => gpio.unexport())
+})
+
+const getGpio = data => handleRequest(
+  data,
+  async gpio => ({
+    state: await gpio.read(),
+  }),
+)
+
+const setGpio = data => handleRequest(
+  data,
+  async (gpio, { id, state, toggle }) => {
+    let value
+    if (typeof toggle !== 'undefined') {
+      value = gpio.readSync() ^ 1
+    } else if (typeof state !== 'undefined') {
+      value = state
+    } else {
+      return codes[400]
+    }
+    log({ id, value })
+    gpio.writeSync(value)
+  },
+)
+
+/**
+ *   ____ _ _            _
+ *  / ___| (_) ___ _ __ | |_ ___
+ * | |   | | |/ _ \ '_ \| __/ __|
+ * | |___| | |  __/ | | | |_\__ \
+ *  \____|_|_|\___|_| |_|\__|___/
+ *
+ */
+
+// Helpers to handle any provider
+const getState = data => typeof data.id === 'string' ? getController(data) : getGpio(data)
+const setState = data => typeof data.id === 'string' ? setController(data) : setGpio(data)
 
 // Send an update to each connected client as well as the middleman
 const broadcastUpdate = (reply) => {
@@ -226,10 +281,10 @@ const broadcastUpdate = (reply) => {
   middleman.send(JSON.stringify(message))
 }
 
-// Refresh the status of a controller and broadcast to the network
+// Refresh the status of a provider and broadcast to the network
 // This is split out so that operations can be async
-const updateController = async (id) => {
-  const reply = await getController(id)
+const refreshState = async (id) => {
+  const reply = await getState({ id })
   // Don't send 502s to every client on a general refresh
   if (reply.code) {
     return
@@ -237,22 +292,13 @@ const updateController = async (id) => {
   broadcastUpdate(reply)
 }
 
-// Refresh all controllers and broadcast an update for each
-const refreshControllers = () => {
-  for (const id of Object.keys(clients)) {
+// Refresh all providers and broadcast an update for each
+const refreshProviders = () => {
+  for (const id of Object.keys(providers)) {
     // This is async
-    updateController(id)
+    refreshState(id)
   }
 }
-
-/**
- *   ____ _ _            _
- *  / ___| (_) ___ _ __ | |_ ___
- * | |   | | |/ _ \ '_ \| __/ __|
- * | |___| | |  __/ | | | |_\__ \
- *  \____|_|_|\___|_| |_|\__|___/
- *
- */
 
 // Used when authenticating or refreshing a jwt
 const getAuthReply = () => ({
@@ -310,30 +356,15 @@ createHandler = socket => async (message) => {
     // Get a newer JWTt
     } else if (type === 'reauth') {
       reply = getAuthReply()
-    // Set a controller's status
+    // Set status of controller or GIPO
     } else if (type === 'set') {
-      reply = await setController(data)
-    // Get a controller's status
+      reply = await setState(data)
+    // Get status of controller or GIPO
     } else if (type === 'get') {
-      reply = await getController(data)
-    // Communicate with a brain's gpio
-    } else if (type === 'operate') {
-      reply = await (async (data) => {
-        console.log('onoff' + data)
-        // Toggle the state of the LED connected to GPIO17 every 200ms
-        const blink = setInterval(() => dump.writeSync(dump.readSync() ^ 1), 200)
-
-        // Stop blinking the LED after 5 seconds
-        setTimeout(() => {
-          // Stop blinking
-          clearInterval(blink)
-          // Unexport GPIO and free resources
-          dump.unexport()
-        }, 5000)
-      })()
+      reply = await getState({ id: data })
     // Refresh the entire network of controllers
     } else if (type === 'refresh') {
-      refreshControllers()
+      refreshProviders()
       return
     // Bad request
     } else {
@@ -440,7 +471,7 @@ app.post('/', async (request, response) => {
 
 // Used to get the status of a controller
 app.get('/', async (request, response) => {
-  const reply = getController(request.query.id)
+  const reply = getController({ id: request.query.id })
   if (reply.code) {
     response.status(reply.code)
   }
