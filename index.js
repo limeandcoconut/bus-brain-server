@@ -146,14 +146,20 @@ const handleRequest = async (data, makeRequest, external = true) => {
   const provider = providers[data.id]
 
   if (!provider) {
-    return codes[404]
+    return {
+      ...codes[404],
+      id: data.id,
+    }
   }
   let reply
   try {
     reply = await makeRequest(provider, data)
     reply.id = data.id
   } catch (error) {
-    return codes[external ? 502 : 500]
+    return {
+      ...codes[external ? 502 : 500],
+      id: data.id,
+    }
   }
   return reply
 }
@@ -167,6 +173,7 @@ const handleRequest = async (data, makeRequest, external = true) => {
  *
  */
 
+// TODO: Rename clients
 // Parse controllers from the config
 const clients = parseClients(configFile)
 const ipToIdMap = {}
@@ -221,7 +228,7 @@ providers = {
 }
 
 process.on('SIGINT', () => {
-  console.log('unexporting')
+  // pm2 Does fire a SIGINT
   Object.values(gpios).forEach(gpio => gpio.unexport())
 })
 
