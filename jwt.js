@@ -25,7 +25,9 @@ module.exports = secret => ({
   decode: (jwt) => {
     const [header, payload, hash] = jwt.split('.')
     const checkSum = generateCheckSum(header, payload, secret)
-    console.log(hash, checkSum)
+    if (process.env.VERBOSE) {
+      console.log(hash, checkSum)
+    }
     if (hash !== checkSum) {
       return false
     }
