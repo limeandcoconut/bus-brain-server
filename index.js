@@ -244,6 +244,7 @@ providers = {
 process.on('SIGINT', () => {
   // pm2 Does fire a SIGINT
   Object.values(gpios).forEach(gpio => gpio.unexport())
+  process.exit(0)
 })
 
 const getGpio = data => handleRequest(
