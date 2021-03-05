@@ -29,5 +29,25 @@ module.exports = {
       },
     }
   },
+  gpioMock: class {
+    constructor() {
+      this.state = Math.round(Math.random())
+    }
+
+    async read() {
+      await sleep(5)
+      return this.state
+    }
+
+    readSync() {
+      return this.state
+    }
+
+    writeSync(value) {
+      this.state = value
+    }
+
+    unexport() {}
+  },
 }
 

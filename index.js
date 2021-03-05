@@ -1,6 +1,6 @@
 const express = require('express')
 const cors = require('cors')
-const { isProd, gotMock } = require('./utils')
+const { isProd, gotMock, gpioMock } = require('./utils')
 const got = isProd() ? require('got') : gotMock
 const parseClients = require('./parse-clients')
 const { port, wsPort, wsMiddleman, configFile } = require('./config.js')
@@ -8,7 +8,7 @@ const WebSocket = require('ws')
 const argon2 = require('argon2')
 const { jwtSecret, password } = require('./keys.js')
 const JWT = require('./jwt.js')(jwtSecret)
-const Gpio = require('onoff').Gpio
+const Gpio = isProd() ? require('onoff').Gpio : gpioMock
 
 const passwords = require('./password-hashes.js')
 if (passwords.length === 0) {
