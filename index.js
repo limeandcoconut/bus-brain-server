@@ -11,8 +11,9 @@ const JWT = require('./jwt.js')(jwtSecret)
 const Gpio = isProd() ? require('onoff').Gpio : gpioMock
 
 const passwords = require('./password-hashes.js')
+const warn = message => `\u001B[41mWARNING: ${message}\u001B[0m`
 if (passwords.length === 0) {
-  console.log('\u001B[41mWARNING: No passwords specified.\u001b[0m')
+  console.log('No passwords specified.')
 }
 
 // eslint-disable-next-line require-jsdoc
@@ -55,7 +56,7 @@ const codes = {
 
 // Intentional hoist
 let createHandler
-let reopenConnection
+let initMiddleman
 
 let authDepth = 1
 const maxDepth = 6
@@ -81,8 +82,17 @@ const getAuthDelay = (depth = authDepth) => authDelay * Math.pow(3, depth)
 let apiJWT
 let middleman
 
+// On close set an incrementally increasing timeout to reconnect
+const reopenConnection = () => {
+  log('Middleman closed')
+  setTimeout(initMiddleman, getAuthDelay())
+  if (authDepth < maxDepth) {
+    authDepth++
+  }
+}
+
 // Initialize the connection to the ws-middleman service
-const initMiddleman = () => {
+initMiddleman = () => {
   try {
     middleman = new WebSocket(wsMiddleman)
   } catch (error) {
@@ -90,6 +100,19 @@ const initMiddleman = () => {
     reopenConnection()
     return
   }
+
+  middleman.on('error', (error) => {
+    console.log(warn('A fatal error occurred while attempting to establish middleman connection'))
+    console.log(error)
+    // If the cert is invalid don't ever reattempt connection
+    if (error.code === 'CERT_HAS_EXPIRED') {
+      console.log(warn('Will not reattempt connection'))
+      // Oroboros
+      // This no-op will be run once
+      initMiddleman = () => {}
+      authDepth = maxDepth
+    }
+  })
 
   // Auth on open
   middleman.on('open', () => {
@@ -116,15 +139,6 @@ const initMiddleman = () => {
 
   // Log the heartbeat
   middleman.on('ping', () => log('ping'))
-}
-
-// On close set an incrementally increasing timeout to reconnect
-reopenConnection = () => {
-  log('Middleman closed')
-  setTimeout(initMiddleman, getAuthDelay())
-  if (authDepth < maxDepth) {
-    authDepth++
-  }
 }
 
 /** *
@@ -408,7 +422,7 @@ createHandler = socket => async (message) => {
 }
 
 // Init connection
-// initMiddleman()
+initMiddleman()
 
 // Prepare to be the api to clients.
 ws.on('connection', async (socket) => {
