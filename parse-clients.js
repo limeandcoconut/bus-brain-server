@@ -7,11 +7,12 @@ module.exports = (filePath) => {
   let clients = {}
   do {
     if (matches) {
-      const [, id, ip] = matches[1].split(',')
+      let [, id, ip] = matches[1].split(',')
+      // Insert dots because dnsmasq doesn't allow dots in names
+      id = `${id.slice(0, 4)}.${id[4]}${id[5] ? `.${id[5]}` : ''}`
       clients[id] = ip
     }
     matches = hostRegex.exec(file)
   } while (matches !== null)
-
   return clients
 }
