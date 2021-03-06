@@ -1,10 +1,10 @@
 const fs = require('fs')
-const hostRegex = /dhcp-host=([\d\w.:,]*)\n/gmi
+const hostRegex = /^dhcp-host=([\d\w.:,]*)\n/gmi
 
 module.exports = (filePath) => {
   const file = fs.readFileSync(filePath, 'utf8')
   let matches = hostRegex.exec(file)
-  let clients = {}
+  const clients = {}
   do {
     if (matches) {
       let [, id, ip] = matches[1].split(',')
