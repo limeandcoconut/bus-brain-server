@@ -157,6 +157,7 @@ const initMiddlemanAuth = (jwt) => {
     middleman.send(JSON.stringify({
       role: 'api',
       type: 'apiReauth',
+      apiJWT,
       data: {
         password,
       },
