@@ -379,7 +379,7 @@ createHandler = socket => async (message) => {
 
   let reply
   // If this is a response sent to the api as a ws client, handle appropriately
-  if (role === 'api') {
+  if (role === 'middleman') {
     if (type === 'apiAuth') {
       initMiddlemanAuth(data.jwt)
     } else {
