@@ -144,7 +144,7 @@ initMiddleman = () => {
 const initMiddlemanAuth = (jwt) => {
   apiJWT = jwt
   const decoded = JWT.decode(jwt, false)
-  if (!decoded?.exp) {
+  if (!decoded || !decoded.exp) {
     console.log(warn('Middleman JWT cannot be decoded'))
     return
   }
