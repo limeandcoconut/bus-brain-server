@@ -22,14 +22,16 @@ module.exports = secret => ({
     const checkSum = generateCheckSum(header, payload, secret)
     return `${header}.${payload}.${checkSum}`
   },
-  decode: (jwt) => {
+  decode: (jwt, verify = true) => {
     const [header, payload, hash] = jwt.split('.')
-    const checkSum = generateCheckSum(header, payload, secret)
-    if (process.env.VERBOSE) {
-      console.log(hash, checkSum)
-    }
-    if (hash !== checkSum) {
-      return false
+    if (verify) {
+      const checkSum = generateCheckSum(header, payload, secret)
+      if (process.env.VERBOSE) {
+        console.log(hash, checkSum)
+      }
+      if (hash !== checkSum) {
+        return false
+      }
     }
     return JSON.parse(base64Decode(payload))
   },
