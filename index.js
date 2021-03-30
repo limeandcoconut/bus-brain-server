@@ -141,6 +141,29 @@ initMiddleman = () => {
   middleman.on('ping', () => log('ping'))
 }
 
+const initMiddlemanAuth = (jwt) => {
+  apiJWT = jwt
+  const decoded = JWT.decode(jwt)
+  if (!decoded?.exp) {
+    console.log(warn('Middleman JWT cannot be decoded'))
+    return
+  }
+  log('Authenticated: ', jwt)
+  // Refresh the jwt 5 minutes before it would expire
+  const delay = decoded.exp - Date.now() - (5 * 60 * 1000)
+  log(`Reauthentication scheduled in: ${delay}`)
+  setTimeout(() => {
+    log('Reauthentication requested.')
+    middleman.send(JSON.stringify({
+      role: 'api',
+      type: 'apiReauth',
+      data: {
+        password,
+      },
+    }))
+  }, delay)
+}
+
 /** *
  *  _   _      _
  * | | | | ___| |_ __   ___ _ __ ___
@@ -357,8 +380,7 @@ createHandler = socket => async (message) => {
   // If this is a response sent to the api as a ws client, handle appropriately
   if (role === 'api') {
     if (type === 'apiAuth') {
-      apiJWT = data.jwt
-      log('Authenticated: ', apiJWT)
+      initMiddlemanAuth(data.jwt)
     } else {
       log('Error: Failed to authenticate with middleman service')
       log(data)
