@@ -186,6 +186,7 @@ const listeners = {}
  */
 // Hoist
 let providers
+let broadcastUpdate
 
 // Get/set the status of a provider
 // 404 on bad id
@@ -300,7 +301,8 @@ const autoOff = ({ id }, { state }) => {
   timers[id] = setTimeout(() => {
     providers[id].writeSync(0)
     timers[id] = null
-  }, 60 * 1000)
+    broadcastUpdate({ id, state })
+  }, 60 * 60 * 1000)
 }
 listeners.dump = autoOff
 listeners.fill = autoOff
@@ -351,7 +353,7 @@ const getState = data => clients[data.id] ? getController(data) : getGpio(data)
 const setState = data => clients[data.id] ? setController(data) : setGpio(data)
 
 // Send an update to each connected client as well as the middleman
-const broadcastUpdate = (reply) => {
+broadcastUpdate = (reply) => {
   // Construct a message
   const message = {
     type: 'update',
