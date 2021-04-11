@@ -301,7 +301,7 @@ const autoOff = ({ id }, { state }) => {
   timers[id] = setTimeout(() => {
     providers[id].writeSync(0)
     timers[id] = null
-    broadcastUpdate({ id, state })
+    broadcastUpdate({ id, state: 0 })
   }, 60 * 60 * 1000)
 }
 listeners.dump = autoOff
