@@ -382,8 +382,9 @@ const refreshState = async (id) => {
 }
 
 // Refresh all providers and broadcast an update for each
+const allIds = Object.keys(providers)
 const refreshProviders = () => {
-  for (const id of Object.keys(providers)) {
+  for (const id of allIds) {
     // This is async
     refreshState(id)
   }
