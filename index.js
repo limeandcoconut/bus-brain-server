@@ -332,6 +332,7 @@ const setGpio = data => handleRequest(
     }
     log({ id, value })
     gpio.writeSync(value)
+    return { state: value }
   },
   false,
 )
