@@ -166,6 +166,17 @@ const initMiddlemanAuth = (jwt) => {
 }
 
 /** *
+ *  _____                 _
+ * | ____|_   _____ _ __ | |_ ___
+ * |  _| \ \ / / _ \ '_ \| __/ __|
+ * | |___ \ V /  __/ | | | |_\__ \
+ * |_____| \_/ \___|_| |_|\__|___/
+ *
+ */
+
+const listeners = {}
+
+/** *
  *  _   _      _
  * | | | | ___| |_ __   ___ _ __ ___
  * | |_| |/ _ \ | '_ \ / _ \ '__/ __|
@@ -193,6 +204,10 @@ const handleRequest = async (data, makeRequest, external = true) => {
   try {
     reply = await makeRequest(provider, data)
     reply.id = data.id
+    // If the request was successful then fire any handlers
+    if (!reply.error && listeners[data.id]) {
+      listeners[data.id](data, reply)
+    }
   } catch (error) {
     return {
       ...codes[external ? 502 : 500],
@@ -264,6 +279,31 @@ providers = {
   ...clients,
   ...gpios,
 }
+
+// Set events for GPIOs
+const timers = {}
+const autoOff = ({ id }, { state }) => {
+  // If the set state is on and there's already a timer then skip
+  // if the set state is off and there's no timer then skip
+  if (Boolean(state) === Boolean(timers[id])) {
+    return
+  }
+
+  // Cancel timer
+  if (!state) {
+    clearTimeout(timers[id])
+    timers.id = null
+    return
+  }
+
+  // Set a new timer
+  timers[id] = setTimeout(() => {
+    providers[id].writeSync(0)
+    timers[id] = null
+  }, 60 * 1000)
+}
+listeners.dump = autoOff
+listeners.fill = autoOff
 
 process.on('SIGINT', () => {
   // pm2 Does fire a SIGINT
